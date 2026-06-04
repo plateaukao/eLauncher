@@ -4,7 +4,7 @@ import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.app.AppCompatDelegate;
 import androidx.preference.PreferenceManager;
-import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import android.annotation.SuppressLint;
 import android.app.AppOpsManager;
@@ -29,23 +29,19 @@ import android.window.OnBackInvokedCallback;
 import android.window.OnBackInvokedDispatcher;
 import android.provider.MediaStore;
 import android.provider.Settings;
-import android.text.Editable;
 import android.text.SpannableString;
 import android.text.Spanned;
-import android.text.TextWatcher;
 import android.text.style.StyleSpan;
-import android.transition.Fade;
-import android.transition.Transition;
-import android.transition.TransitionManager;
 import android.util.Log;
 import android.util.TypedValue;
 import android.view.GestureDetector;
+import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.Window;
-import android.view.inputmethod.InputMethodManager;
+import android.view.WindowManager;
 import android.widget.EditText;
-import android.widget.LinearLayout;
+import android.widget.GridLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -64,7 +60,6 @@ public class MainActivity extends AppCompatActivity {
 
     private ArrayList<App> appList;
     private ArrayList<SpannableString> appNames;
-    private EditText search;
     private SharedPreferences prefs;
 
     private static final String ELAUNCHER_PACKAGE = "me.pompel.elauncher";
@@ -94,40 +89,15 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    long keyboardActionTime = 0;
-
-    private void keyboardAction(boolean hide) {
-        // if this method has been called in the last 100 milliseconds, return
-        long currentTime = System.currentTimeMillis();
-        if (currentTime - 100 < keyboardActionTime) return;
-        keyboardActionTime = currentTime;
-        
-        InputMethodManager inputManager = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
-        if (hide) {
-            search.clearFocus();
-            inputManager.hideSoftInputFromWindow(search.getWindowToken(), InputMethodManager.HIDE_NOT_ALWAYS);
-        } else {
-            search.requestFocus();
-            inputManager.toggleSoftInput(InputMethodManager.SHOW_IMPLICIT, InputMethodManager.HIDE_NOT_ALWAYS);
-        }
-    }
-
     private void changeLayout(boolean home, boolean animated) {
         if (!home) loadApps();
-        keyboardAction(home);
-        if (animated) {
-            Transition transition = new Fade();
-            transition.setDuration(300);
-            transition.addTarget(R.id.HomeScreen);
-            TransitionManager.beginDelayedTransition(findViewById(R.id.MainLayout), transition);
-        }
-        findViewById(R.id.HomeScreen).setVisibility(home ? View.VISIBLE : View.GONE);
+        findViewById(R.id.HomeScreenContainer).setVisibility(home ? View.VISIBLE : View.GONE);
         findViewById(R.id.AppDrawer).setVisibility(home ? View.GONE : View.VISIBLE);
 
         Set<String> activeProcessPackages = listActiveProcessPackages();
 
         if (home) {
-            LinearLayout homescreen = findViewById(R.id.HomeScreen);
+            GridLayout homescreen = findViewById(R.id.HomeScreen);
 
             int length = hasUsageStatsPermission() ?
                     homescreen.getChildCount() :
@@ -159,8 +129,6 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void openAppWithIntent(Intent intent, boolean change) {
-        keyboardAction(true);
-        search.setText("");
         safeStartActivity(intent);
         if (change) changeLayout(true, false);
     }
@@ -228,7 +196,7 @@ public class MainActivity extends AppCompatActivity {
             safeStartActivity(new Intent(canMakePhoneCall() ? Intent.ACTION_DIAL : MediaStore.INTENT_ACTION_STILL_IMAGE_CAMERA));
         } else if (isRightEdge) {
             // Right edge swipe - open default browser (same as left swipe in SwipeListener)
-            safeStartActivity(getDefaultBrowserIntent());
+            openBrowser();
         }
         // Reset flags
         isBackGesture = false;
@@ -295,8 +263,7 @@ public class MainActivity extends AppCompatActivity {
                 openAppWithIntent(intent, false);
             }
         });
-        RecyclerView.LayoutManager layoutManager = new LinearLayoutManager(getApplicationContext());
-        recyclerView.setLayoutManager(layoutManager);
+        recyclerView.setLayoutManager(new GridLayoutManager(getApplicationContext(), 2));
         recyclerView.setAdapter(adapter);
 
         recyclerView.addOnScrollListener(new RecyclerView.OnScrollListener() {
@@ -309,14 +276,11 @@ public class MainActivity extends AppCompatActivity {
                 if (newState == RecyclerView.SCREEN_STATE_ON) {
                     onTop = !recyclerView.canScrollVertically(-1);
                     onBottom = !recyclerView.canScrollVertically(1);
-                    if (onTop) keyboardAction(true);
                 } else if (newState == RecyclerView.SCREEN_STATE_OFF) {
                     if (!recyclerView.canScrollVertically(1)) {
                         if (onBottom) changeLayout(true, true);
-                        else keyboardAction(true);
                     } else if (!recyclerView.canScrollVertically(-1)) {
                         if (onTop) changeLayout(true, true);
-                        else keyboardAction(true);
                     }
                 }
             }
@@ -327,24 +291,7 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        search = findViewById(R.id.search);
-        search.addTextChangedListener(new TextWatcher() {
-            @Override
-            public void beforeTextChanged(CharSequence charSequence, int i, int i1, int i2) {
-            }
-
-            @Override
-            public void afterTextChanged(Editable editable) {
-            }
-
-            @Override
-            public void onTextChanged(CharSequence charSequence, int i, int i1, int i2) {
-                adapter.getFilter().filter(charSequence);
-            }
-        });
-
-        LinearLayout homescreen = findViewById(R.id.HomeScreen);
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        GridLayout homescreen = findViewById(R.id.HomeScreen);
         CharSequence[] alertApps = appNames.toArray(new CharSequence[0]);
         int i = 0;
         for (i = 0; i < prefs.getInt(NUMBER_OF_APPS, 8); i++) {
@@ -353,9 +300,10 @@ public class MainActivity extends AppCompatActivity {
             textView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 32);
             textView.setTypeface(Typeface.create(!hasUsageStatsPermission() ? "sans-serif" : "sans-serif-light", Typeface.NORMAL));
             textView.setPadding(0, 0, 0, 50);
+            textView.setGravity(Gravity.CENTER);
             textView.setText(prefs.getString(Integer.toString(i), "App"));
             textView.setTag(i);
-            textView.setLayoutParams(params);
+            textView.setLayoutParams(gridCell(i));
             textView.setOnLongClickListener(v -> {
                 loadApps();
                 AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
@@ -392,10 +340,11 @@ public class MainActivity extends AppCompatActivity {
             textView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 32);
             textView.setTypeface(Typeface.create("sans-serif", Typeface.ITALIC));
             textView.setPadding(0, 0, 0, 50);
+            textView.setGravity(Gravity.CENTER);
             String lastAppName = getNameByPackageName(lastActiveProcessPackage());
             textView.setText(lastAppName != null ? lastAppName : "Last App");
             textView.setTag(i);
-            textView.setLayoutParams(params);
+            textView.setLayoutParams(gridCell(i));
             textView.setOnClickListener(v -> {
                 String pkg = lastActiveProcessPackage();
                 openAppWithIntent(getPackageManager().getLaunchIntentForPackage(pkg), true);
@@ -403,12 +352,23 @@ public class MainActivity extends AppCompatActivity {
             homescreen.addView(textView);
         }
 
-        new SwipeListener(homescreen);
+        new SwipeListener(findViewById(R.id.HomeScreenContainer));
 
     }
 
+    // Build layout params placing the i-th app into a 2-column grid (row-major),
+    // with each column taking an equal half of the width.
+    private GridLayout.LayoutParams gridCell(int i) {
+        GridLayout.LayoutParams gp = new GridLayout.LayoutParams();
+        gp.width = 0;
+        gp.height = GridLayout.LayoutParams.WRAP_CONTENT;
+        gp.columnSpec = GridLayout.spec(i % 2, 1f);
+        gp.rowSpec = GridLayout.spec(i / 2);
+        return gp;
+    }
+
     private void homeUpdateUsage() {
-        LinearLayout homescreen = findViewById(R.id.HomeScreen);
+        GridLayout homescreen = findViewById(R.id.HomeScreen);
         Set<String> activeProcessPackages = listActiveProcessPackages();
 
         int length = hasUsageStatsPermission() ?
@@ -461,17 +421,36 @@ public class MainActivity extends AppCompatActivity {
         return resolveInfo.activityInfo.packageName;
     }
 
-    private Intent getDefaultBrowserIntent() {
+    private void openBrowser() {
         String pkg = getDefaultBrowserPackage();
 
-        // if there is no default browser, return default browser selection intent
-        if (pkg == null || pkg.equals("android")) {
-            Intent selector = new Intent(Intent.ACTION_VIEW);
-            selector.setData(Uri.parse("http://"));
-            return selector;
+        // If a real default browser is set, just launch it.
+        if (pkg != null && !pkg.equals("android")) {
+            safeStartActivity(getPackageManager().getLaunchIntentForPackage(pkg));
+            return;
         }
 
-        return getPackageManager().getLaunchIntentForPackage(pkg);
+        // No default browser: show our own picker instead of the system chooser,
+        // so we can drop the dimmed "mask" background behind the dialog.
+        PackageManager packageManager = getPackageManager();
+        Intent browserIntent = new Intent(Intent.ACTION_VIEW, Uri.parse("http://"));
+        List<ResolveInfo> browsers = packageManager.queryIntentActivities(browserIntent, 0);
+        if (browsers.isEmpty()) return;
+
+        CharSequence[] labels = new CharSequence[browsers.size()];
+        for (int i = 0; i < browsers.size(); i++) labels[i] = browsers.get(i).loadLabel(packageManager);
+
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setItems(labels, (d, which) ->
+                        safeStartActivity(packageManager.getLaunchIntentForPackage(browsers.get(which).activityInfo.packageName)))
+                .create();
+
+        Window window = dialog.getWindow();
+        if (window != null) {
+            window.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+            window.setDimAmount(0f);
+        }
+        dialog.show();
     }
 
     private List<ResolveInfo> getLaunchersResolveInfos() {
@@ -535,17 +514,15 @@ public class MainActivity extends AppCompatActivity {
                     assert e1 != null;
                     float xDiff = e2.getX() - e1.getX();
                     float yDiff = e2.getY() - e1.getY();
-                    if (Math.abs(xDiff) > Math.abs(yDiff) && Math.abs(xDiff) > 100 && Math.abs(velocityX) > 100) safeStartActivity((xDiff > 0)
-                            ? new Intent(canMakePhoneCall() ? Intent.ACTION_DIAL : MediaStore.INTENT_ACTION_STILL_IMAGE_CAMERA)
-                            : getDefaultBrowserIntent());
+                    if (Math.abs(xDiff) > Math.abs(yDiff) && Math.abs(xDiff) > 100 && Math.abs(velocityX) > 100) {
+                        if (xDiff > 0) safeStartActivity(new Intent(canMakePhoneCall() ? Intent.ACTION_DIAL : MediaStore.INTENT_ACTION_STILL_IMAGE_CAMERA));
+                        else openBrowser();
+                    }
                     else if (Math.abs(yDiff) > 100 && Math.abs(velocityY) > 100) {
                         if (yDiff > 0)
                             try { Class.forName("android.app.StatusBarManager").getMethod("expandNotificationsPanel").invoke(getSystemService("statusbar")); }
                             catch (Exception e) { Log.d(App.class.toString(), SwipeListener.class+": onFling", e); }
-                        else {
-                            changeLayout(false, true);
-                            keyboardAction(false);
-                        }
+                        else changeLayout(false, true);
                     }
                     return true;
                 }
