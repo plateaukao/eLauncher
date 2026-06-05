@@ -125,6 +125,9 @@ public class MainActivity extends AppCompatActivity {
             }
         } else {
             adapter.setProcessPackages(activeProcessPackages);
+            // appList was just rebuilt by loadApps(); refresh the drawer so newly
+            // installed/removed apps show up (the old search filter used to do this).
+            adapter.notifyDataSetChanged();
         }
     }
 
