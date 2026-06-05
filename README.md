@@ -17,6 +17,15 @@ eLauncher favours easy readibility on eInk/ePaper devices, such as the Onyx Boox
 - Gestures: swipe down for notification center, left for browser app, right for phone app, double tap to open the original launcher
 - Hold on empty space to change the number of apps on homescreen
 
+## Supernote
+
+This fork adds a layout tailored for the Supernote (Nomad / e-ink): a 2-column home screen and app drawer, no search bar or on-screen keyboard, and instant (no-fade) transitions to avoid e-ink ghosting.
+
+<p>
+  <img src="screenshots/supernote-home.jpg" width="45%" alt="Supernote 2-column home screen" />
+  <img src="screenshots/supernote-drawer.jpg" width="45%" alt="Supernote 2-column app drawer" />
+</p>
+
 ## apk size differences with OLauncher Light
 
 This might have been done on purpose, but OLauncher Light uses long deprecated APIs, like ListView to achieve its impressive 23 KB apk size. eLauncher uses RecyclerView, which is much better for performance and memory usage, and also uses many other newer APIs. Thus, the APK size is much larger than with OLauncher Light, but still really small - 1.8 MB.
