@@ -42,6 +42,13 @@ Two activities, no fragments-based navigation, no DI, no architecture framework.
 
 `BigmeShims` and `UnlockReceiver` exist solely for the Bigme HiBreak, gated on `Build.MODEL.equals("HiBreak")`. The device's stock launcher controls hardware gestures; when eLauncher replaces it, `queryLauncherProvider()` pokes `com.xrz.LauncherProvider` (called from `onCreate`, `onResume`, and on unlock broadcasts) to keep that gesture process alive. Changes here only affect that one device and are no-ops elsewhere.
 
+## Supernote (Ratta) specifics
+
+`SupernoteShims`, gated on `Build.MANUFACTURER == "Supernote"`, no-ops elsewhere:
+
+- **Status bar must stay hidden** (`hideStatusBar`, called from both activities' `onCreate` and `MainActivity.onResume`). Ratta's SystemUI never draws the AOSP status bar, but if the home window leaves it requested-visible the ROM insets the home task 213px below the top after a bar show/hide cycle and never restores it — a dead black band. All stock Ratta apps run immersive.
+- **"Last note" / "last document" home slots** replicate the stock launcher slide-bar panel's intents (reverse-engineered from `GesturePresenter` in SupernoteLauncher.apk). Last note path comes from `/storage/emulated/0/.noteCache/noteLastFile.xml` (requires All Files Access — `MANAGE_EXTERNAL_STORAGE` in the manifest; a tap redirects to the grant screen until granted); last document comes from the Document app's exported `FileStateProvider` (`content://com.ratta.supernote.document.provider.file/status`, state 1 = opened). Both fall back to a plain app launch. The slots are appended before the "last app" slot — `changeLayout`/`homeUpdateUsage` assume the last grid child is the last-app slot.
+
 ## Theming (eInk)
 
 Two themes in `themes.xml`: `AppTheme` (light, default) and `AppTheme.InvertedDark`. Selected in `MainActivity.onCreate` from `dark_mode_preference`, defaulting to the system night-mode setting. Status/navigation bar colors are matched to the background to keep the screen flat for eInk. Colors are pure black/white (`colors.xml`) for maximum eInk contrast.

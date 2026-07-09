@@ -1,0 +1,4 @@
+<resources>
+    <string name="last_note">最後打開筆記</string>
+    <string name="last_document">最後打開文檔</string>
+</resources>

@@ -19,6 +19,7 @@ public class SettingsActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
 
         setContentView(R.layout.settings_activity);
+        SupernoteShims.hideStatusBar(getWindow());
         if (savedInstanceState == null) {
             getSupportFragmentManager()
                     .beginTransaction()

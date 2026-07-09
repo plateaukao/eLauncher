@@ -228,8 +228,7 @@ public class MainActivity extends AppCompatActivity {
         }
 
         setContentView(R.layout.activity_main);
-
-        setContentView(R.layout.activity_main);
+        SupernoteShims.hideStatusBar(getWindow());
 
         // if it does not have USAGE_STATS and it's the first launch, open settings
         if (!hasUsageStatsPermission() && !prefs.getBoolean("firstLaunch", false)) {
@@ -337,26 +336,46 @@ public class MainActivity extends AppCompatActivity {
             homescreen.addView(textView);
         }
 
+        // Supernote-only action slots replicating the stock slide-bar panel entries.
+        // They must come before the "last app" slot: changeLayout/homeUpdateUsage
+        // assume the last grid child is the last-app slot.
+        if (SupernoteShims.isSupernote()) {
+            if (isPackageInstalled(SupernoteShims.NOTE_PACKAGE))
+                homescreen.addView(actionSlot(getString(R.string.last_note), i++, v -> SupernoteShims.openLastNote(this)));
+            if (isPackageInstalled(SupernoteShims.DOCUMENT_PACKAGE))
+                homescreen.addView(actionSlot(getString(R.string.last_document), i++, v -> SupernoteShims.openLastDocument(this)));
+        }
+
         if (hasUsageStatsPermission()) {
-            TextView textView = new TextView(this);
-            textView.setTextColor(getColorFromAttr(androidx.appcompat.R.attr.colorPrimary));
-            textView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 32);
-            textView.setTypeface(Typeface.create("sans-serif", Typeface.ITALIC));
-            textView.setPadding(0, 0, 0, 50);
-            textView.setGravity(Gravity.CENTER);
             String lastAppName = getNameByPackageName(lastActiveProcessPackage());
-            textView.setText(lastAppName != null ? lastAppName : "Last App");
-            textView.setTag(i);
-            textView.setLayoutParams(gridCell(i));
-            textView.setOnClickListener(v -> {
+            homescreen.addView(actionSlot(lastAppName != null ? lastAppName : "Last App", i, v -> {
                 String pkg = lastActiveProcessPackage();
                 openAppWithIntent(getPackageManager().getLaunchIntentForPackage(pkg), true);
-            });
-            homescreen.addView(textView);
+            }));
         }
 
         new SwipeListener(findViewById(R.id.HomeScreenContainer));
 
+    }
+
+    // Italic homescreen slot bound to an action instead of a pinned app
+    // (used for "last app" and the Supernote last-note/last-document slots).
+    private TextView actionSlot(String label, int index, View.OnClickListener listener) {
+        TextView textView = new TextView(this);
+        textView.setTextColor(getColorFromAttr(androidx.appcompat.R.attr.colorPrimary));
+        textView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 32);
+        textView.setTypeface(Typeface.create("sans-serif", Typeface.ITALIC));
+        textView.setPadding(0, 0, 0, 50);
+        textView.setGravity(Gravity.CENTER);
+        textView.setText(label);
+        textView.setTag(index);
+        textView.setLayoutParams(gridCell(index));
+        textView.setOnClickListener(listener);
+        return textView;
+    }
+
+    private boolean isPackageInstalled(String packageName) {
+        return getPackageManager().getLaunchIntentForPackage(packageName) != null;
     }
 
     // Build layout params placing the i-th app into a 2-column grid (row-major),
@@ -404,6 +423,7 @@ public class MainActivity extends AppCompatActivity {
     protected void onResume() {
         super.onResume();
         BigmeShims.queryLauncherProvider(this);
+        SupernoteShims.hideStatusBar(getWindow());
         homeUpdateUsage();
     }
 
